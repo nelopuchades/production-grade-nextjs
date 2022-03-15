@@ -9,6 +9,7 @@ import FolderPane from '../../components/folderPane'
 import DocPane from '../../components/docPane'
 import NewFolderDialog from '../../components/newFolderDialog'
 import { getSession, useSession } from 'next-auth/client';
+import { folder, doc, connectToDB } from '../../db';
 
 const App: FC<{ folders?: any[]; activeFolder?: any; activeDoc?: any; activeDocs?: any[] }> = ({
   folders,
@@ -80,8 +81,29 @@ App.defaultProps = {
 
 export async function getServerSideProps(ctx) {
   const session = await getSession(ctx);
+
+  const props: any = {};
+  if (!session) {
+    return {
+      props: { session },
+    }
+  }
+
+  const { db } = await connectToDB();
+  props.session = session;
+  props.folders = await folder.getFolders(db, session.user.id);
+
+  if (ctx.params.id) {
+    props.activeFolder = props.folders.find(folder => folder._id === ctx.params.id[0]);
+    props.activeDocs = await doc.getDocsByFolder(db, props.activeFolder._id);
+
+    if (ctx.params.id.length > 1) {
+      props.activeDoc = props.activeDocs.find(doc => doc._id === ctx.params.id[2]);
+    }
+  }
+
   return {
-    props: { session },
+    props,
   }
 }
 
@@ -90,7 +112,7 @@ export async function getServerSideProps(ctx) {
  * states.
  * 1. Folders - none selected
  * 2. Folders => Folder selected
- * 3. Folders => Folder selected => Document selected
+ * 3. Folders => Folder selected => Document selected /app/1/2
  *
  * An unauth user should not be able to access this page.
  *
